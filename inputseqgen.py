@@ -8,10 +8,10 @@ N = 1
 ITER = 1000
 
 #Contains original sequence of lenght M + N - 1 (In time order)
-FILENAMEORIGINAL = 'dumpfiles/filesource_m'+str(M)+'_n' + str(N)+'_original'
+FILENAMEORIGINAL = 'dumpfiles/filesource_m' + str(M) + '_n' + str(N) + '_original'
 
 #Contains 3 copies of input sequence (since bytes missing in beginning and end of output stream)
-FILENAMEREPEAT = 'dumpfiles/filesource_m'+str(M)+'_n' + str(N)+'_repeat'
+FILENAMEREPEAT = 'dumpfiles/filesource_m' + str(M) + '_n' + str(N) + '_repeat'
 
 #To prevent divide by 0 warnings
 eps = 1e-10
@@ -30,10 +30,10 @@ def generateMatrix(numSamples=126, taps=3, iterations=1000,
   for _ in range(iterations):
     sequence = [1 if random() > 0.5 else -1 for sample in range(numSamples+taps -1)]
     matrix = []
-    for i in range((numSamples)):
+    for i in range(numSamples):
       matrix.append([])
-      for j in range((taps)):
-        matrix[i].append(sequence[i+taps-1-j])
+      for j in range(taps):
+        matrix[i].append(sequence[i + taps - 1 - j])
 
     singularValues = la.svd(matrix, compute_uv = 0)
     cost = costFunction(singularValues)
