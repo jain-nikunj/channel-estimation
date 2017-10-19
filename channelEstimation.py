@@ -6,23 +6,35 @@
 
 import numpy as np
 import math
-import matplotlib.pyplot as plt
+from random import random
+# import matplotlib.pyplot as plt
 from numpy import sin, linspace, pi, cos
-from scipy import fft, arange
+# from scipy import fft, arange
 
 
 def init_params():
     '''All global parameters initialized here'''
-    global runMode
+    global runMode, numSamples, fileSourceBitsExpt1, fileSinkComplexExpt1
     
-    runMode = 2 #0: before expt1, 1: before expt2, 2: after expt2
+    runMode = 0 #0: before expt1, 1: before expt2, 2: after expt2
+    numSamples = 200 # Length of bit sequeunce
+
+
+    #For files
+    fileDirectory = "./exptfiles"
+    fileSourceBitsExpt1 = "fileSourceBitsExpt1" #Binary file used as (byte) file source for expt 1
+    fileSinkComplexExpt1 = "fileSinkComplexExpt1" #Binary file containing (complex) file sink dump from expt 1
+
+
+
+    fileSourceBitsExpt1  = fileDirectory + "/" + fileSourceBitsExpt1
+    fileSinkComplexExpt1  = fileDirectory + "/" + fileSinkComplexExpt1
 
 
 #Before expt 1
 def get_bits_data():
     '''Returns bit array to be written to file to be used as file source for gnuradio expt1 '''
-    bitsData = []
-    
+    bitsData = [1 if random() > 0.5 else 0 for sample in range(numSamples)]
     
     return bitsData
 
@@ -32,8 +44,11 @@ def write_bits_input():
     bitsData = get_bits_data()
     
     #Write to file here
+    with open(fileSourceBitsExpt1, 'wb') as newFile:
+      newFileByteArray = bytearray(bitsData)
+      newFile.write(newFileByteArray)
+      newFile.close()
     
-    pass
 
 #Before expt 2
 
