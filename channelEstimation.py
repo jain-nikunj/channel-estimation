@@ -8,8 +8,14 @@ import sys
 
 def init_params():
     '''All global parameters initialized here'''
-    global noiseThreshold, maxLagEnd, minTaps, maxTaps, maxErrorToleranceThreshold, lagSearchWindow, numSamplesUsed, dummyOffset, maxToleranceThreshold, corrOffset, fs, correlationDict, toneFrequencies, numTonePeriods, lenTone, runMode, maxSamples, maxChannelLen, numSamples, fileSourceBitsExpt1, fileSinkComplexExpt2,fileSinkComplexExpt1, fileSourceComplexExpt2
-     
+    global noiseThreshold, maxLagEnd, minTaps, maxTaps
+    global maxErrorToleranceThreshold, lagSearchWindow, numSamplesUsed
+    global dummyOffset, maxToleranceThreshold, corrOffset, fs, correlationDict
+    global toneFrequencies, numTonePeriods, lenTone, runMode, maxSamples
+    global maxChannelLen, numSamples, fileSourceBitsExpt1
+    global fileSinkComplexExpt2,fileSinkComplexExpt1, fileSourceComplexExpt2
+    global xStartSequence, xEndSequence
+
 
     runMode = 2 #0: before expt1, 1: before expt2, 2: after expt2
     maxSamples = 2000000 # Length of bit sequence of 0,1 BPSK used for expt 1
@@ -25,13 +31,14 @@ def init_params():
     maxToleranceThreshold = 0.995 #Set this depending on noise
     maxErrorToleranceThreshold = 0.99
     dummyOffset = 500 #Dummy values in output to simulate practical scenario while receiving
-    toneFrequencies = [ fs/100.0, fs/200.0, fs/500.0] 
+    toneFrequencies = [ fs/100.0, fs/200.0, fs/500.0]
     numTonePeriods = 5 #Number of periods for lowest frequency 
     lenTone = int(numTonePeriods*fs//min(toneFrequencies));
     lagSearchWindow = 20; #Search around estimated lag in window of this size
-    
-    noiseThreshold = 1e-1
 
+    noiseThreshold = 1e-1
+    xStartSequence = 0
+    xEndSequence = int((maxSamples - numSamplesUsed)*1e-2)
 
     correlationDict = {} #key: lag for this sine wave #value: the sine wave
     #For files
@@ -53,34 +60,30 @@ def init_params():
 def get_bits_data():
     '''Returns bit array to be written to file to be used as file source for gnuradio expt1 '''
     bitsData = [int(255*random()) for sample in range(maxSamples)]
-    
+
     return bitsData
 
 def write_bits_input():
     '''Writes the byte array to be used as (byte) file source for gnuradio expt 1 '''
-    
+
     bitsData = get_bits_data()
-    
+
     #Write to file here
     with open(fileSourceBitsExpt1, 'wb') as newFile:
       newFileByteArray = bytearray(bitsData)
       newFile.write(newFileByteArray)
       newFile.close()
-    
+
 
 #Before expt 2
-
-
 def get_complex_data():
-    '''Returns complex values corresponding to input read from file sink of expt 1 '''
-     
-
+    """Returns complex values corresponding to input read from file sink of
+    expt 1 """
     # floatsIn = np.fromfile(fileSourceComplexExpt2)
     # complexData = np.array([complex(floatsIn[2*i], floatsIn[2*i + 1]) for i in range(len(floatsIn) // 2)])
-    
 
     complexData = np.fromfile(fileSinkComplexExpt1, dtype = 'complex64')
-    complexData = complexData[1:numSamples]
+    complexData = complexData[1:numSamplesUsed]
     # plot.plot(complexData.real)
     # plt.title('expt1 output')
     # plt.show()
@@ -99,7 +102,7 @@ def get_complex_tones():
     y = []
     x = np.array(range(lenTone))
     for k,toneFrequency in enumerate(toneFrequencies):
-        curStart = k*lenTone + corrOffset      
+        curStart = k*lenTone + corrOffset
         yTemp = np.array(sin(x*2.0*pi*toneFrequency/fs))
         correlationDict[toneFrequency] = {}
         correlationDict[toneFrequency]['start'] = curStart
@@ -108,16 +111,16 @@ def get_complex_tones():
             y.append(yTemp[i])
 
     complexTones = np.array(y, dtype = 'complex64')
-    
+
     # complexTones = np.zeros((1,2*len(y)))
     # for i in range(len(y)):
     #     complexTones[0][2*i] = y[i]
     #     complexTones[0][2*i+1] = 0
 
-    # print(complexTones)
+    # logFile.write(complexTones)
 
     # for start in correlationDict:
-    #     print(start)
+    #     logFile.write(start)
     #     plt.plot(correlationDict[start])
     #     plt.title(str(start))
     #     plt.show()
@@ -126,7 +129,7 @@ def get_complex_tones():
 
 def write_complex_input():
     '''Writes the byte array for tone + data into file to be used as (complex) file source for gnuradio for expt2 '''
-    
+
     complexTones = get_complex_tones()
     complexData = get_complex_data()
 
@@ -135,15 +138,15 @@ def write_complex_input():
     plt.plot(complexInput.real)
     plt.show()
     #Write to file here  
-    with open(fileSourceComplexExpt2, 'wb') as newFile:       
+    with open(fileSourceComplexExpt2, 'wb') as newFile:
         # complexData.tofile(fileSourceComplexExpt2)
-        # print(complexTones)
+        # logFile.write(complexTones)
         complexInput.tofile(fileSourceComplexExpt2)
 
- 
+
 
 #After expt 2
-def correlate(x, y): 
+def correlate(x, y):
     '''Returns x.y/sqrt(x.x*y.y) '''
     if(len(x) == len(y)):
         num = np.sum(np.multiply(x,y))
@@ -153,24 +156,29 @@ def correlate(x, y):
         else:
             return 1
     else:
-        raise ValueError("Length of x = " + str(len(x)) + " does not match length of  y = "  + str(len(y)))
-        
+        raise ValueError("Length of x = " + str(len(x)) + \
+          " does not match length of  y = "  + str(len(y)))
+
 def read_output():
     '''Reads the complex values from output file sink generated by gnuradio expt 2'''
-    
-    complexOutput = np.fromfile(fileSinkComplexExpt2, dtype = 'complex64').reshape(-1,1)
-    # print(complexOutput.shape)
 
-    complexOutput = np.concatenate([np.array(np.zeros((dummyOffset,1))), complexOutput], axis = 0)
-    # print(complexOutput.shape)
+    complexOutput = np.fromfile(
+      fileSinkComplexExpt2, dtype = 'complex64').reshape(-1,1)
+    # logFile.write(complexOutput.shape)
+
+    complexOutput = np.concatenate(
+      [np.array(np.zeros((dummyOffset,1))), complexOutput], axis = 0)
+    # logFile.write(complexOutput.shape)
     # plt.plot(complexOutput.real)
     # plt.title('expt2')
     # plt.show()
     return complexOutput
+
+
 def get_max_range(x, tolerance):
     '''Returns the indices and values for all values >= tolerance*maximum'''
     maxIndices = []
-    maxRange = [] 
+    maxRange = []
     maxVal = max(x)
 
     for k,elem in enumerate(x):
@@ -178,30 +186,31 @@ def get_max_range(x, tolerance):
             maxRange.append(elem)
             maxIndices.append(k)
 
-    return [maxIndices, maxRange] 
+    return [maxIndices, maxRange]
+
 def get_min_range(x, tolerance):
     '''Returns the indices and values for all values <= maximum/tolerance'''
     minIndices = []
-    minRange = [] 
+    minRange = []
     minVal = min(x)
 
     for k,elem in enumerate(x):
         if elem <= minVal/tolerance:
-           
             minRange.append(elem)
             minIndices.append(k)
 
-    return [minIndices, minRange]       
+    return [minIndices, minRange]
+
 def get_lag_estimate(complexOutput):
     '''Returns best lag estimate based on coarse timing synchronization using tones'''
-   
+
     lagStart = dummyOffset//2;
     lagEstArray = []
     for toneFrequency in toneFrequencies:
         start = correlationDict[toneFrequency]['start']
         curX = correlationDict[toneFrequency]['wave']
-        print ('Correlating for wave starting at ' + str(start) + '...')
-     
+        logFile.write ('Correlating for wave starting at ' + str(start) + '...'+ "\n")
+
         lagEnd = min(maxLagEnd, len(complexOutput) - len(curX) )
 
 
@@ -213,39 +222,39 @@ def get_lag_estimate(complexOutput):
             curCorr = correlate(abs(curX), abs(curY))
             corrArray.append(curCorr)
             lagArray.append(lag)
-            # print ('Lag: ' + str(lag) + ', Corr: ' + str(curCorr))
+            # logFile.write ('Lag: ' + str(lag) + ', Corr: ' + str(curCorr))
 
         [maxIndices, maxRange] = get_max_range(corrArray, maxToleranceThreshold)
-        
+
         curLagArray = []
         for index in maxIndices:
             curLagArray.append(lagArray[index])
 
-        print('---Max Lags')
-        print('---' + str(curLagArray))
-        print('---Max Values')
-        print('---'+ str(maxRange))
+        logFile.write('---Max Lags'+ "\n")
+        logFile.write('---' + str(curLagArray)+ "\n")
+        logFile.write('---Max Values'+ "\n")
+        logFile.write('---'+ str(maxRange)+ "\n")
 
-       
-        curEstLag = np.median(curLagArray) - start 
-        print('---Current Estimated Lag: ' + str(curEstLag))
+
+        curEstLag = np.median(curLagArray) - start
+        logFile.write('---Current Estimated Lag: ' + str(curEstLag)+ "\n")
         lagEstArray.append(curEstLag)
         # plt.plot(arange(lagStart,lagEnd), corrArray)
         # plt.show()
     lagEstimate = int(np.mean(lagEstArray))
-    print 'Final estimated lag: ' + str(lagEstimate)
-    
+    logFile.write('Final estimated lag: ' + str(lagEstimate)+ "\n")
     return lagEstimate
 
 
-def get_channel_estimate_with_numtaps(numTaps, lagEstimate, complexInput, complexOutput):
+def get_channel_estimate_with_numtaps(
+    numTaps, lagEstimate, complexInput, complexOutput, xOffset):
     #Scan a range around the lag
     channelArray = []
     errorArray = []
     lagArray = []
     for lag in arange(lagEstimate - lagSearchWindow//2, 1+lagEstimate + lagSearchWindow//2):
-        # print('---Considering lag ' + str(lag) + '...')
-        xStart = lenTone*len(toneFrequencies) + maxChannelLen//2
+        # logFile.write('---Considering lag ' + str(lag) + '...')
+        xStart = lenTone*len(toneFrequencies) + maxChannelLen//2 + xOffset
         xEnd = xStart + numSamplesUsed + numTaps -1
 
         yStart = xStart + lag + numTaps - 1
@@ -253,12 +262,16 @@ def get_channel_estimate_with_numtaps(numTaps, lagEstimate, complexInput, comple
         if xEnd < len(complexInput):
             curX = complexInput[xStart:xEnd]
         else:
-            raise ValueError('Index out of bounds in complex Input, StartIndex: ' + str(xStart) + ', EndIndex: ' + str(xEnd) + ' Length: ' + len(complexInput))
+            raise ValueError('Index out of bounds in complex Input,' + \
+              'StartIndex: ' + str(xStart) + ', EndIndex: ' + str(xEnd) + \
+              ' Length: ' + str(len(complexInput)))
 
         if yStart >= 0 and yEnd < len(complexOutput):
             curY = complexOutput[yStart:yEnd]
         else:
-            raise ValueError('Index out of bounds in complex Output, StartIndex: ' +str(yStart) + ', EndIndex: ' + str(yEnd) +   ' Length: ' + len(complexOutput))
+            raise ValueError('Index out of bounds in complex Output' + \
+              ', StartIndex: ' + str(yStart) + ', EndIndex: ' + str(yEnd) + \
+              ' Length: ' + str(len(complexOutput)))
 
 
         # plt.plot(range(len(curX)), curX.real, 'b', range(len(curY)), curY.real, 'r')
@@ -270,16 +283,16 @@ def get_channel_estimate_with_numtaps(numTaps, lagEstimate, complexInput, comple
           for j in range(numTaps):
             matrix[i].append(curX[i + numTaps - 1 - j])
 
-        matrix = np.array(matrix)   
+        matrix = np.array(matrix)
         matrixpinv = np.linalg.pinv(matrix)
 
 
         curChannelEstimate = np.dot(matrixpinv, curY)
-        # print '------Channel Estimate: '
-        # print((curChannelEstimate))
+        # logFile.write('------Channel Estimate: ')
+        # logFile.write(curChannelEstimate)
 
         curError = np.linalg.norm(np.dot(matrix,curChannelEstimate) - curY,2)**2
-        # print('------Error:' + str(curError))
+        # logFile.write('------Error:' + str(curError))
 
         lagArray.append(lag)
         errorArray.append(curError)
@@ -287,8 +300,8 @@ def get_channel_estimate_with_numtaps(numTaps, lagEstimate, complexInput, comple
 
     [minIndices, minRange] = get_min_range(errorArray, maxErrorToleranceThreshold)
 
-    # print(minRange)
-    # print(minIndices)
+    # logFile.write(minRange)
+    # logFile.write(minIndices)
     yError = min(minRange)
     lenFlatRegion = len(minRange)
     channel = channelArray[minIndices[0]]
@@ -297,83 +310,87 @@ def get_channel_estimate_with_numtaps(numTaps, lagEstimate, complexInput, comple
 
 def get_channel_estimate():
     '''Returns estimated channel based on matrix inversion and searching a range around lag estimates'''
-    
+
     complexTones = get_complex_tones()
     complexData = get_complex_data()
-    complexInput = np.concatenate([complexTones,complexData] , axis = 1)
+    complexInput = np.concatenate([complexTones,complexData] , axis = 0)
     complexOutput = read_output()
-
 
     lagEstimate = get_lag_estimate(complexOutput)
 
+    for i in range(xStartSequence, xEndSequence - numSamplesUsed):
+        channelEstimate = []
+        tapArray = []
+        errorArray = []
+        lenFlatRegionArray = []
+        channelArray = []
+        for numTaps in arange(minTaps,maxTaps+1):
+            logFile.write ('Getting channel estimate assuming ' + str(numTaps) + ' taps...'+ "\n")
 
-    channelEstimate = []
-    tapArray = []
-    errorArray = []
-    lenFlatRegionArray = []
-    channelArray = []
-    for numTaps in arange(minTaps,maxTaps+1):
-        print ('Getting channel estimate assuming ' + str(numTaps) + ' taps...')
+            [yError, lenFlatRegion, channel] = get_channel_estimate_with_numtaps(
+              numTaps, lagEstimate, complexInput, complexOutput, i)
+            logFile.write ('Error: ' + str(yError)+ "\n")
+            logFile.write('Length of flat region: ' + str(lenFlatRegion)+ "\n")
 
-        [yError, lenFlatRegion, channel] = get_channel_estimate_with_numtaps(numTaps, lagEstimate, complexInput, complexOutput)
-        print ('Error: ' + str(yError))
-        print('Length of flat region: ' + str(lenFlatRegion))
+            tapArray.append(numTaps)
+            errorArray.append(yError)
+            lenFlatRegionArray.append(lenFlatRegion)
+            channelArray.append(channel)
 
-        tapArray.append(numTaps)
-        errorArray.append(yError)
-        lenFlatRegionArray.append(lenFlatRegion)
-        channelArray.append(channel)
+        # plt.plot(tapArray, errorArray, 'r')
+        # plt.title('Error vs numTaps')
+        # plt.ylim((0, 1e1*noiseThreshold))
+        # plt.savefig('Er')
+        # plt.show()
+        # plt.plot(tapArray, lenFlatRegionArray, 'b')
+        # plt.title('Length of flat region vs numTaps')
+        # plt.show()
 
-    plt.plot(tapArray, errorArray, 'r')
-    plt.title('Error vs numTaps')
-    plt.ylim((0, 1e1*noiseThreshold))
-    plt.savefig('Er')
-    plt.show()
-    # plt.plot(tapArray, lenFlatRegionArray, 'b')
-    # plt.title('Length of flat region vs numTaps')
-    # plt.show()
+        #Get minimum index so that length of flat region is 2
+        minIndex = -1
+        predictedTaps = -1
 
-    #Get minimum index so that length of flat region is 2
-    minIndex = -1
-    predictedTaps = -1
-
-    errorChangeArray = [0]
-    for i in range(1,len(tapArray)):
-       errorChange = abs(errorArray[i]-errorArray[i-1])/errorArray[i-1] 
-       errorChangeArray.append(errorChange)
-       print(tapArray[i], i, errorArray[i], errorArray[i-1], errorChange)
-       if errorChange <= 0.1 and abs(errorArray[i]) < noiseThreshold:
-        minIndex = i - 1
-        predictedTaps = tapArray[i-1]
-        break
-    # plt.plot(tapArray, errorChangeArray, 'r')
-    # plt.title('Error change vs numTaps')
-    # plt.show()
-    channelEstimate = channelArray[minIndex]
-    print "Min Index: " + str(minIndex)
-    print "Predicted numTaps: " + str(predictedTaps)
-    return channelEstimate
+        errorChangeArray = [0]
+        for i in range(1,len(tapArray)):
+           errorChange = abs(errorArray[i]-errorArray[i-1])/errorArray[i-1]
+           errorChangeArray.append(errorChange)
+           logFile.write(tapArray[i], i, errorArray[i], errorArray[i-1], errorChange)
+           if errorChange <= 0.1 and abs(errorArray[i]) < noiseThreshold:
+            minIndex = i - 1
+            predictedTaps = tapArray[i-1]
+            break
+        # plt.plot(tapArray, errorChangeArray, 'r')
+        # plt.title('Error change vs numTaps')
+        # plt.show()
+        channelEstimate = channelArray[minIndex]
+        logFile.write("Timestep ({})".format(str(i)) + "\n")
+        logFile.write("Error V/S Number of Taps:" + "\n")
+        logFile.write(str(errorArray)+ "\n")
+        logFile.write("Min Index: " + str(minIndex)+ "\n")
+        logFile.write("Predicted numTaps: " + str(predictedTaps)+ "\n")
+        logFile.write("Channel Estimate:"+ "\n")
+        logFile.write(str(channelEstimate)+ "\n")
 
 def run():
     '''Call functions depending on modes'''
     if runMode is 0: #Before expt 1
-        print("Writing byte array bit input...")
+        logFile.write("Writing byte array bit input..."+ "\n")
         write_bits_input()
     elif runMode is 1: #Before expt 2
-        print("Writing byte array complex input...")
+        logFile.write("Writing byte array complex input..."+ "\n")
         write_complex_input()
     elif runMode is 2: #After expt 2
-        print("Getting channel estimate...")
-        channelEstimate = get_channel_estimate()
-        print("Channel Estimate: ")
-        print(channelEstimate)
+        logFile.write("Getting channel estimate..."+ "\n")
+        get_channel_estimate()
     else:
-        raise ValueError('Unsupported runMode ' + str(runMode))
-        
+        raise ValueError('Unsupported runMode ' + str(runMode)+ "\n")
+
 def main():
-    init_params()
-    run()
-    print("Done!")   
+    global logFile
+    with open("channelEstimation.log", "w") as logFile: #OVERWRITES
+        init_params()
+        run()
+        logFile.write("Done!"+ "\n")
 
 if __name__ == "__main__":
-    main() 
+    main()
