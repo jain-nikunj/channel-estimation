@@ -83,7 +83,7 @@ def get_complex_data():
     # complexData = np.array([complex(floatsIn[2*i], floatsIn[2*i + 1]) for i in range(len(floatsIn) // 2)])
 
     complexData = np.fromfile(fileSinkComplexExpt1, dtype = 'complex64')
-    complexData = complexData[1:numSamplesUsed]
+    complexData = complexData[1:]
     # plot.plot(complexData.real)
     # plt.title('expt1 output')
     # plt.show()
@@ -315,6 +315,8 @@ def get_channel_estimate():
     complexData = get_complex_data()
     complexInput = np.concatenate([complexTones,complexData] , axis = 0)
     complexOutput = read_output()
+    print(len(complexInput))
+    print(len(complexOutput))
 
     lagEstimate = get_lag_estimate(complexOutput)
 

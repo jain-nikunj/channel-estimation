@@ -86,7 +86,7 @@ def process_output(complex_output):
 
 def main():
   init_params()
-  process_arguments()
+  process_args()
   complex_output = get_complex_output()
   # plt.plot(complex_output[300000:400000])
   # plt.show()
